@@ -4,6 +4,7 @@ import re
 import gc
 import diskcache
 import numpy as np
+import timeit
 from sortedcontainers import SortedList
 from intervaltree import Interval, IntervalTree
 from .sparseUtilizationList import SparseUtilizationList
@@ -54,21 +55,36 @@ def processEvent(self, datasetId, event):
         self.sortedEventsByLocation[event['Location']].add((event['Timestamp'], event))
     return (newR, seenR)
 
+# Adding a timer here for the purpose of creating a graph for my GSoC proposal
 async def processOtf2(self, datasetId, file, log=logToConsole):
-    # Run each substep, with manual calls to python's garbage collector in
-    # between
+    # Run each substep, with manual calls to python's garbage collector in between
+    # Time each substep
+    start = timeit.default_timer()
     await self.processRawTrace(datasetId, file, log)
     gc.collect()
+    # print elapsed time, use comma as separator to load it easily into pandas and to avoid newline
+    print('CSV', file.name, 'ProcessRawTrace', timeit.default_timer() - start, sep = ', ')
+    start = timeit.default_timer()
     await self.combineIntervals(datasetId, log)
     gc.collect()
+    print('CSV', file.name, 'combineIntervals', timeit.default_timer() - start, sep = ', ')
+    start = timeit.default_timer()
     await self.buildIntervalTree(datasetId, log)
     gc.collect()
+    print('CSV', file.name, 'buildIntervalTree', timeit.default_timer() - start, sep = ', ')
+    start = timeit.default_timer()
     await self.connectIntervals(datasetId, log)
     gc.collect()
+    print('CSV', file.name, 'connectIntervals', timeit.default_timer() - start, sep = ', ')
+    start = timeit.default_timer()
     await self.buildSparseUtilizationLists(datasetId, log)
     gc.collect()
+    print('CSV', file.name, 'buildSparseUtilizationLists', timeit.default_timer() - start, sep = ', ')
+    start = timeit.default_timer()
     await self.buildDependencyTree(datasetId, log)
     gc.collect()
+    print('CSV', file.name, 'buildDependencyTree', timeit.default_timer() - start, sep = ', ')
+    start = timeit.default_timer()
     self.finishLoadingSourceFile(datasetId, file.name)
 
 async def processRawTrace(self, datasetId, file, log):
@@ -262,6 +278,7 @@ async def combineIntervals(self, datasetId, log):
             # probably not a big deal as they're usually shudown_action events?
             await log('')
             await log('\nWARNING: omitting trailing ENTER event (%s)' % lastEvent['Primitive'])
+# line above can be commented out to get less errors
 
     # Clean up temporary lists
     del self.sortedEventsByLocation
